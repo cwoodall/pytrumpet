@@ -2,6 +2,8 @@ import pyaudio as pa
 import numpy as np
 import struct
 import matplotlib.pyplot as plt
+import scipy as sp
+import scipy.signal
 import time
 
 def block2short(block):
@@ -10,14 +12,14 @@ def block2short(block):
     return struct.unpack(fmt, block)
 
 if __name__ == "__main__":
-    fig = plt.figure()
-    plt.axis([0,128,0,1000])
-    plt.ion()
-    plt.show()
+    # fig = plt.figure()
+    # plt.axis([0,128,0,1000])
+    # plt.ion()
+    # plt.show()
     __CHUNK__ = 4096
     __FORMAT__ = pa.paInt16
     __CHANNELS__ = 1
-    __RATE__ = 44200
+    __RATE__ = 48000
 
     __DEV_INDEX__ = 0
 
@@ -29,46 +31,10 @@ if __name__ == "__main__":
                         input_device_index = __DEV_INDEX__,
                         rate = __RATE__)
     stream.start_stream()
-
-    fir = [0.000198,
-           0.000524,
-           0.001090,
-           0.001979,
-           0.003267,
-           0.005022,
-           0.007290,
-           0.010087,
-           0.013393,
-           0.017145,
-           0.021238,
-           0.025527,
-           0.029835,
-           0.033963,
-           0.037702,
-           0.040856,
-           0.043248,
-           0.044741,
-           0.045249,
-           0.044741,
-           0.043248,
-           0.040856,
-           0.037702,
-           0.033963,
-           0.029835,
-           0.025527,
-           0.021238,
-           0.017145,
-           0.013393,
-           0.010087,
-           0.007290,
-           0.005022,
-           0.003267,
-           0.001979,
-           0.001090,
-           0.000524,
-           0.000198]
-
-
+    filter_order = 255 # High Order Filter
+    filter_cutoff = 1000.0 / (__RATE__/2.0)#Hz
+    fir = sp.signal.firwin(filter_order + 1, filter_cutoff)
+    
     while 1:
         try:
             block = stream.read(__CHUNK__)
@@ -77,22 +43,31 @@ if __name__ == "__main__":
             continue
         
         data = block2short(block)
+#        data = [i/2**16 for i in data]
         # Low Pass Filter to 1kHz using http://arc.id.au/FilterDesign.html
-        data = np.convolve(data, fir)
-            
-        # subsample by 16 to go from 44200Hz to 2762.5 Hz
-        data = data[::16]
+    #    data = np.convolve(data, fir)
+        data_filt = sp.signal.lfilter(fir, 1.0, data)
+        N = 16 # downsampling coefficient
+        # subsample by 16 t o go from 44200Hz to 2762.5 Hz
+        data_ds = data_filt[filter_order::N]
 #        print(data)
-        mag = abs(np.fft.rfft(data))
-#        pwr = [i**2 for i in mag]
+        mag = abs(np.fft.rfft(data_ds))
         
+#        pwr = [i for i in mag]
+        
+        freqs = np.linspace(0,__RATE__/(2*N), len(mag) )        
+        print(freqs)
+        # Plot the frequency and the max frequency detected
+#        plt.plot(freqs,pwr)
+#        plt.stem([freqs[pwr.index(max(pwr))]], [max(pwr)], '-.')
+#        plt.ylim([0, .2])
+        print(freqs[mag.index(max(mag))])
 
-        plt.plot(mag)
-        plt.draw()
-        plt.pause(.1)
-        plt.cla()
-        #        time.sleep(.5)
-#            downsample(
+        # Decision point (coupled with key presses)
+        if 
+#        plt.draw()
+#        plt.pause(.1)
+#        plt.cla()
 #    except except:
 #        stream.stop_stream()
 #        stream.close()
