@@ -16,12 +16,13 @@ if __name__ == "__main__":
     # plt.axis([0,128,0,1000])
     # plt.ion()
     # plt.show()
-    __CHUNK__ = 4096
+__CHUNK__ = 4096*2
     __FORMAT__ = pa.paInt16
     __CHANNELS__ = 1
-    __RATE__ = 48000
+    __RATE__ = 44100
 
-    __DEV_INDEX__ = 0
+    __DEV_INDEX__ = 3
+
 
     audio = pa.PyAudio()
     stream = audio.open(format = __FORMAT__,
@@ -31,7 +32,8 @@ if __name__ == "__main__":
                         input_device_index = __DEV_INDEX__,
                         rate = __RATE__)
     stream.start_stream()
-    filter_order = 255 # High Order Filter
+    filter_order = 255
+ # High Order Filter
     filter_cutoff = 1000.0 / (__RATE__/2.0)#Hz
     fir = sp.signal.firwin(filter_order + 1, filter_cutoff)
     
@@ -61,10 +63,10 @@ if __name__ == "__main__":
 #        plt.plot(freqs,pwr)
 #        plt.stem([freqs[pwr.index(max(pwr))]], [max(pwr)], '-.')
 #        plt.ylim([0, .2])
-        print(freqs[mag.index(max(mag))])
+        print(freqs[np.where(mag == max(mag))])
 
         # Decision point (coupled with key presses)
-        if 
+#        if 
 #        plt.draw()
 #        plt.pause(.1)
 #        plt.cla()
