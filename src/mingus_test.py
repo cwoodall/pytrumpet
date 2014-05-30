@@ -2,7 +2,7 @@ from mingus.containers.Note import Note
 from mingus.midi import fluidsynth
 import time
 
-fluidsynth.init("trumpet.sf2", "alsa")
+fluidsynth.init("soundfonts/trumpet.sf2", "alsa")
 
 fluidsynth.play_Note(Note("C-4"))
 time.sleep(1)

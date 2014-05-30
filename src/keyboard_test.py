@@ -37,10 +37,8 @@ while not done:
     # get key current state
     keys = pygame.key.get_pressed()
     valves = [keys[valve_idx] for valve_idx in valve_map]
-#    print(valves)
-#    print("\n")
     screen.fill((0, 0, 0))
-    if time == 40:
+    if time == 100:
         frequency = random.randint(180,392)
         time = 0
     else:

@@ -1,6 +1,7 @@
 import pyaudio as pa
-import numpy as np
+
 import struct
+import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sp
 import scipy.signal
@@ -16,7 +17,7 @@ if __name__ == "__main__":
     # plt.axis([0,128,0,1000])
     # plt.ion()
     # plt.show()
-__CHUNK__ = 4096*2
+    __CHUNK__ = 4096*2
     __FORMAT__ = pa.paInt16
     __CHANNELS__ = 1
     __RATE__ = 44100
