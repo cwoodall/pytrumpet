@@ -183,8 +183,7 @@ class TrumpetDisplay(object):
 
 if __name__ == '__main__':
     # Initialize pygame
-#    pygame.init()
-#    screen = pygame.display.set_mode((640,480))
+
     tpt = Trumpet()
     disp = TrumpetDisplay()
     freq = Value('d', 0);
