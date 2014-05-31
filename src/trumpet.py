@@ -63,7 +63,7 @@ class Trumpet(object):
                 return idx
         raise Exception()
 
-def getInputTone(freq):
+def getInputTone(freq, run_state):
     # Set initialization variables to interface
     # with microphone/alsa input channel
     __CHUNK__ = 4096*2
@@ -83,14 +83,16 @@ def getInputTone(freq):
     stream.start_stream()
     
     # Setup a filter to run over the time domain information
-    filter_order = 255
+    filter_order = 15
     # High Order Filter
     filter_cutoff = 1000.0 / (__RATE__/2.0)#Hz
     fir = sp.signal.firwin(filter_order + 1, filter_cutoff)
-    while 1:
+    while run_state.value:
         try:
             block = stream.read(__CHUNK__)
             prev_block = block
+        except KeyboardInterrupt:
+            raise
         except:
             print "dropped"
             block = prev_block
@@ -105,6 +107,10 @@ def getInputTone(freq):
         
         freqs = np.linspace(0,__RATE__/(2*N), len(mag) )        
         freq.value = freqs[np.where(mag == max(mag))]
+    stream.stop_stream()
+    stream.close()
+
+    audio.terminate()
 
 class TrumpetDisplay(object):
     __RUNNING = True
@@ -125,6 +131,9 @@ class TrumpetDisplay(object):
         self.stop_timer = 0
         self.prev_note = ""
 
+    def cleanup(self):
+        fluidsynth.stop_everything()
+
     def update_display(self, tpt, freq):
         frequency = freq.value
         # Look for crucial events and updated the state 
@@ -135,7 +144,7 @@ class TrumpetDisplay(object):
                 return self.run_state
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
-                    self.run_sate = self.__DONE
+                    self.run_state = self.__DONE
                     return self.run_state
         
         keys = pygame.key.get_pressed()
@@ -163,7 +172,8 @@ class TrumpetDisplay(object):
                 elif self.prev_note is "":
                     fluidsynth.play_Note(Note(note_str))
                     self.prev_note = note_str
-
+        except KeyboardInterrupt:
+            raise
         except:
             print "Unexpected error:", sys.exc_info()[0]
 #            self.texts("".format(frequency),(0,0))
@@ -178,9 +188,15 @@ if __name__ == '__main__':
     tpt = Trumpet()
     disp = TrumpetDisplay()
     freq = Value('d', 0);
-    input_tone_p = Process(target=getInputTone, args=(freq,))
-    input_tone_p.start()
+    run_state = Value('i', 1)
 
-    while disp.run_state == disp.RUNNING:
-        disp.update_display(tpt, freq)
-    p.join()
+    input_tone_p = Process(target=getInputTone, args=(freq,run_state))
+    input_tone_p.start()
+    try:
+        while disp.run_state == disp.RUNNING:
+            disp.update_display(tpt, freq)
+    finally:
+        print "Exiting"
+        run_state.value = 0
+        input_tone_p.join()
+        disp.cleanup()
