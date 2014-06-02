@@ -67,7 +67,7 @@ class Trumpet(object):
       # Second Range
         ['F-4' ,'D#-4','E-4' ,'D-4' ,'B-3' ,'C-4' ,'C#-4','B-3'],
       # Third Range
-        ['A#-4','G#-4','A-4' ,'G-4' ,'F#-3','F-4' ,'G-4' ,'E-4'],
+        ['A#-4','G#-4','A-4' ,'G-4' ,'F-4','F-4' ,'F#-4' ,'E-4'],
       # Fourth Range
         ['D-5' ,'C-5','C#-5' ,'B-4' ,'B-3' ,'C-4' ,'C#-4','B-3'],
       # Fifth Range
@@ -98,7 +98,7 @@ class Trumpet(object):
 
         # Keep track of the current note state
         self.current_note = "" 
-
+        
 
     def play_Note(self, freq, keys, vol=1):
         """
@@ -147,7 +147,94 @@ class Trumpet(object):
                 return idx
         return 0
 
-def getInputTone(freq, run_state, dev_idx=3, rate=44100):
+class TrumpetState(object):
+    """
+    Object which holds shared state of various elements of the trumpet
+    interface. Most notably the run/error state between processes and
+    the frequency value.
+    """
+    RUNNING = 1
+    STOP    = 0
+    def __init__(self):
+        self.state     = Value('i', self.RUNNING)
+        self.frequency = Value('d', 0)
+
+    def get_state(self):
+        return self.state.value
+    
+    def write_state(self, new_state):
+        self.state.value = new_state
+        return self.state.value
+
+    def get_frequency(self):
+        return self.frequency.value
+    
+    def write_frequency(self, new_frequency):
+        self.frequency.value = new_frequency
+        return self.frequency.value
+
+class TrumpetDisplay(object):
+    """
+    """
+    # __RUNNING = True
+    # __DONE = False
+    def texts(self, text_str, pos):
+        """
+        """
+        font=pygame.font.Font(None,30)
+        scoretext=font.render(text_str, 1, (255,255,255))
+        self.screen.blit(scoretext, pos)
+
+    def __init__(self, trumpet_state, xy=(400,35)):
+        """
+        """
+        # self.RUNNING = True
+        # self.DONE = False
+        # self.run_state = self.__RUNNING
+        self.trumpet_state = trumpet_state
+        self.trumpet_state.write_state(self.trumpet_state.RUNNING)
+        self.xy = xy
+        pygame.init()
+        self.screen = pygame.display.set_mode(xy)
+        self.keys = []
+        self.stop_timer = 0
+        self.prev_note = ""
+
+    def cleanup(self):
+        pygame.quit()
+        print "Quitting pygame"
+
+    def update_display(self, tpt):
+        frequency = self.trumpet_state.get_frequency()
+        # Look for crucial events and updated the state 
+        # exits with state of self.run_state
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                self.trumpet_state.write_state(self.trumpet_state.STOP)
+                return -1
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    self.trumpet_state.write_state(self.trumpet_state.STOP)
+                    return -1
+        
+        keys = pygame.key.get_pressed()
+        self.screen.fill((0, 0, 0))
+        try:
+            if frequency < tpt.freq_ranges[0][0]:
+                self.texts("Silence", (5,5))
+                tpt.stop_Note()
+            else:
+                tpt.play_Note(frequency, keys)
+                self.texts("Freq: {0} | Note: {1}".format(
+                    frequency, tpt.current_note),(5,5))
+        except KeyboardInterrupt:
+            raise
+        except:
+            print "Unexpected error:", sys.exc_info()[0]
+            raise
+        pygame.display.update()
+
+def audio_processing_worker(trumpet_state, dev_idx=3, rate=44100):
     """
     """
     # Set initialization variables to interface
@@ -179,12 +266,13 @@ def getInputTone(freq, run_state, dev_idx=3, rate=44100):
     # Start audiostream
     stream.start_stream()
     previous_block = []
-    while run_state.value:
+    while trumpet_state.get_state() is trumpet_state.RUNNING:
         try:
             # Retrieve stream data.
             block = stream.read(__CHUNK__)
             prev_block = block
         except KeyboardInterrupt:
+
             raise
         except:
             print "dropped"
@@ -210,72 +298,13 @@ def getInputTone(freq, run_state, dev_idx=3, rate=44100):
         # in the frequency range of the harmonic we want to play. This
         # appears to be mostly accurate for trumpet mouhtpieces. Completely
         # inaccurate for whistling though.
-        freq.value = freqs[np.where(mag == max(mag))]
-
+#        freq.value = freqs[np.where(mag == max(mag))]
+        trumpet_state.write_frequency(freqs[np.where(mag == max(mag))])
     # Stop and close the stream then exit the function when the
     # state changes.
     stream.stop_stream()
     stream.close()
     audio.terminate()
-
-class TrumpetDisplay(object):
-    """
-    """
-    __RUNNING = True
-    __DONE = False
-    def texts(self, text_str, pos):
-        """
-        """
-        font=pygame.font.Font(None,30)
-        scoretext=font.render(text_str, 1, (255,255,255))
-        self.screen.blit(scoretext, pos)
-
-    def __init__(self, xy=(400,35)):
-        """
-        """
-        self.RUNNING = True
-        self.DONE = False
-        self.run_state = self.__RUNNING
-        self.xy = xy
-        pygame.init()
-        self.screen = pygame.display.set_mode(xy)
-        self.keys = []
-        self.stop_timer = 0
-        self.prev_note = ""
-
-    def cleanup(self):
-        pygame.quit()
-        print "Quitting pygame"
-
-    def update_display(self, tpt, freq):
-        frequency = freq.value
-        # Look for crucial events and updated the state 
-        # exits with state of self.run_state
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                self.run_state = self.__DONE
-                return self.run_state
-            elif event.type == KEYDOWN:
-                if event.key == K_ESCAPE:
-                    self.run_state = self.__DONE
-                    return self.run_state
-        
-        keys = pygame.key.get_pressed()
-        self.screen.fill((0, 0, 0))
-        try:
-            if frequency < tpt.freq_ranges[0][0]:
-                self.texts("Silence", (5,5))
-                tpt.stop_Note()
-            else:
-                tpt.play_Note(frequency, keys)
-                self.texts("Freq: {0} | Note: {1}".format(
-                    frequency, tpt.current_note),(5,5))
-        except KeyboardInterrupt:
-            raise
-        except:
-            print "Unexpected error:", sys.exc_info()[0]
-            raise
-        pygame.display.update()
 
 if __name__ == '__main__':
     cli_argparser = argparse.ArgumentParser(description='Play trumpet using your computer')
@@ -289,26 +318,27 @@ if __name__ == '__main__':
 
     # Initialize Trumpet and TrumpetDisplay
     tpt = Trumpet(cli_args.soundfont)
-    disp = TrumpetDisplay()
+    trumpet_state = TrumpetState()
+    disp = TrumpetDisplay(trumpet_state)
 
     # Start state variables for frequency and run_state. These will
-    # be updated inside of the getInputTone "function"/process.
-    freq = Value('d', 0);
-    run_state = Value('i', 1)
+    # be updated inside of the audio_processing_worker "function"/process.
+#    freq = Value('d', 0);
+#    run_state = Value('i', 1)
     
-    # Start running the getInputTone function as a process with shared memory
-    # (run_state) and freq. for freq getInputTone is a producer and nothing 
+    # Start running the audio_processing_worker function as a process with shared memory
+    # (run_state) and freq. for freq audio_processing_worker is a producer and nothing 
     # else should write to freq. However, for run_state it is a consumer and 
     # does not write to it. The process will exit when run_state becomes false.
-    input_tone_p = Process(target=getInputTone, args=(freq,run_state, int(cli_args.dev_idx), int(cli_args.rate)))
+    input_tone_p = Process(target=audio_processing_worker, args=(trumpet_state, int(cli_args.dev_idx), int(cli_args.rate)))
     input_tone_p.start()
 
     try:
-        while disp.run_state == disp.RUNNING:
-            disp.update_display(tpt, freq)
+        while trumpet_state.get_state() is trumpet_state.RUNNING:
+            disp.update_display(tpt)
+
     finally:
         print "Exiting"
-        run_state.value = 0
         input_tone_p.join()
         tpt.stop_Note()
         disp.cleanup()
