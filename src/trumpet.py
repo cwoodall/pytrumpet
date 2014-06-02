@@ -15,8 +15,8 @@ import numpy as np
 import scipy as sp
 import scipy.signal
 import struct
-import sys
-import operator
+
+import sys, argparse, operator
 
 # FIXME: This code is terrible... make it better
 def block2short(block):
@@ -49,6 +49,8 @@ class Trumpet(object):
     default_valve_mapping=[K_a, K_s, K_d]
 
     def __init__(self, 
+                 soundfont_file,
+                 soundfont_driver="alsa",
                  valve_mapping=default_valve_mapping,
                  freq_ranges=default_freq_ranges,
                  note_mapping=default_note_mapping):
@@ -57,7 +59,7 @@ class Trumpet(object):
         self.note_mapping = note_mapping
         self.current_note = ""
 
-        fluidsynth.init("soundfonts/trumpet.sf2", "alsa")
+        fluidsynth.init(soundfont_file, "alsa")
 
     def play_Note(self, freq, keys, vol=1):
         next_note = self.lookup_Note(freq, keys)
@@ -190,7 +192,7 @@ class TrumpetDisplay(object):
         
         keys = pygame.key.get_pressed()
         self.screen.fill((0, 0, 0))
-        try:        
+        try:
             if frequency < tpt.freq_ranges[0][0]:
                 self.texts("Silence", (5,5))
                 tpt.stop_Note()
@@ -206,8 +208,12 @@ class TrumpetDisplay(object):
         pygame.display.update()
 
 if __name__ == '__main__':
+    
+    cli_argparser = argparse.ArgumentParser(description='Play trumpet using your computer')
+    cli_argparser.add_argument('-s', '--soundfont', action='store', default='default.sf2')
+    cli_args = cli_argparser.parse_args(sys.argv[1:])
     # Initialize pygame
-    tpt = Trumpet()
+    tpt = Trumpet(cli_args.soundfont)
     disp = TrumpetDisplay()
     freq = Value('d', 0);
     run_state = Value('i', 1)
