@@ -1,12 +1,14 @@
-# TODO
+# PyTrumpet: Play Trumpet With Python
+## TODO
 
-- Make exit elegantly
 - Make a script to install dependencies
-- Finish making frequncy ranges
 - test with a real mouthpiece.
 - Speed up frequency update/silence... Also some debouncing would be useful (slotting?)
+- Seperate into multiple files
+- Writeup a post on how it works.
+- Add a volume enveloping feature.
 
-# Dependencies
+## Dependencies
 
 - Python 2.7
 - Fluidsynth
@@ -15,3 +17,4 @@
 - pyaudio
 - pygame
 - matplotlib
+
