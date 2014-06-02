@@ -40,7 +40,7 @@ def block2short(block):
     # Each entry is 2 bytes long and block appears as a binary string (array 
     # of 1 byte characters). So the length of our final binary string is the
     # length of the block divided by 2.
-    sample_len = len(block)/2 
+    sample_len = len(block)/2
     fmt = "%dh" % (sample_len) # create the format string for unpacking
     return struct.unpack(fmt, block)
 
@@ -72,8 +72,6 @@ class Trumpet(object):
         ['D-5' ,'C-5','C#-5' ,'B-4' ,'B-3' ,'C-4' ,'C#-4','B-3'],
       # Fifth Range
         ['F-5' ,'D#-5','E-5' ,'D-5' ,'B-4' ,'C-6' ,'C#-6','B-4'],
-
-#      ['G-4' ,'F-4' ,'F#-4','E-4' ,'D#-4','D-4' ,'D#-4','C#-4'] # Freq Range 1 mapping
     ]
     default_valve_mapping=[K_a, K_s, K_d]
 
@@ -108,7 +106,7 @@ class Trumpet(object):
         if next_note != self.current_note:
             if self.current_note:
                 fluidsynth.stop_Note(Note(self.current_note),1)
-            print "playing note"
+            print "playing note {0}".format(next_note)
             fluidsynth.play_Note(Note(next_note),1)
             self.current_note = next_note
 
@@ -176,8 +174,6 @@ class TrumpetState(object):
 class TrumpetDisplay(object):
     """
     """
-    # __RUNNING = True
-    # __DONE = False
     def texts(self, text_str, pos):
         """
         """
@@ -188,9 +184,6 @@ class TrumpetDisplay(object):
     def __init__(self, trumpet_state, xy=(400,35)):
         """
         """
-        # self.RUNNING = True
-        # self.DONE = False
-        # self.run_state = self.__RUNNING
         self.trumpet_state = trumpet_state
         self.trumpet_state.write_state(self.trumpet_state.RUNNING)
         self.xy = xy
@@ -201,11 +194,16 @@ class TrumpetDisplay(object):
         self.prev_note = ""
 
     def cleanup(self):
+        """
+        """
         pygame.quit()
         print "Quitting pygame"
 
     def update_display(self, tpt):
+        """
+        """
         frequency = self.trumpet_state.get_frequency()
+
         # Look for crucial events and updated the state 
         # exits with state of self.run_state
         for event in pygame.event.get():
@@ -239,7 +237,7 @@ def audio_processing_worker(trumpet_state, dev_idx=3, rate=44100):
     """
     # Set initialization variables to interface
     # with microphone/alsa input channel
-    __CHUNK__ = 4096
+    __CHUNK__ = 4096*2
     __FORMAT__ = pa.paInt16
     __CHANNELS__ = 1
     __RATE__ = rate
@@ -247,7 +245,6 @@ def audio_processing_worker(trumpet_state, dev_idx=3, rate=44100):
 
     # Open and start a pyaudio audio stream
     audio = pa.PyAudio()
-    print audio.get_default_host_api_info()
     stream = audio.open(format = __FORMAT__,
                         channels = __CHANNELS__,
                         frames_per_buffer = __CHUNK__,
@@ -298,7 +295,6 @@ def audio_processing_worker(trumpet_state, dev_idx=3, rate=44100):
         # in the frequency range of the harmonic we want to play. This
         # appears to be mostly accurate for trumpet mouhtpieces. Completely
         # inaccurate for whistling though.
-#        freq.value = freqs[np.where(mag == max(mag))]
         trumpet_state.write_frequency(freqs[np.where(mag == max(mag))])
     # Stop and close the stream then exit the function when the
     # state changes.
@@ -323,8 +319,6 @@ if __name__ == '__main__':
 
     # Start state variables for frequency and run_state. These will
     # be updated inside of the audio_processing_worker "function"/process.
-#    freq = Value('d', 0);
-#    run_state = Value('i', 1)
     
     # Start running the audio_processing_worker function as a process with shared memory
     # (run_state) and freq. for freq audio_processing_worker is a producer and nothing 
@@ -336,9 +330,12 @@ if __name__ == '__main__':
     try:
         while trumpet_state.get_state() is trumpet_state.RUNNING:
             disp.update_display(tpt)
-
     finally:
-        print "Exiting"
+        # Clean
+        print "Cleaning Up",
         input_tone_p.join()
+        print "!!",
         tpt.stop_Note()
+        print "!!!"
         disp.cleanup()
+        print "Exiting. Have a nice day."
