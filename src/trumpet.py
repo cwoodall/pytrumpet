@@ -1,3 +1,6 @@
+# Import multiprocessing library to try to deal with the audio input
+from multiprocessing import Value, Process
+
 # Import PyGame to make a nice UI, easily (possibly move to pytkinter?)
 import pygame
 from pygame.locals import *
@@ -6,9 +9,6 @@ from pygame.locals import *
 from mingus.containers.Note import Note
 from mingus.midi import fluidsynth
 
-# Import multiprocessing library to try to deal with the audio input
-from multiprocessing import Value, Process
-
 # Import portaudio (pyaudio), struct (to unpack), and scipy (fft)
 import pyaudio as pa
 import numpy as np
@@ -16,6 +16,7 @@ import scipy as sp
 import scipy.signal
 import struct
 import sys
+import operator
 
 # FIXME: This code is terrible... make it better
 def block2short(block):
@@ -24,12 +25,11 @@ def block2short(block):
     return struct.unpack(fmt, block)
 
 class Trumpet(object):
-    default_freq_ranges = [
-        (163,234), 
-        (234,350), 
-        (350,467),
-        (467,588),
-        (588,784)] # FIXME: add remaining ranges and fine-tune
+    default_freq_ranges = [(163,234), 
+                           (234,350), 
+                           (350,467),
+                           (467,588),
+                           (588,784)] # FIXME: add remaining ranges and fine-tune
 
     default_note_mapping = [
       # 000   , 100  , 010  , 110  , 001  , 101  , 011  , 111
@@ -46,34 +46,69 @@ class Trumpet(object):
 
 #      ['G-4' ,'F-4' ,'F#-4','E-4' ,'D#-4','D-4' ,'D#-4','C#-4'] # Freq Range 1 mapping
     ]
+    default_valve_mapping=[K_a, K_s, K_d]
+
     def __init__(self, 
-                 valve_mapping=[K_a, K_s, K_d],
+                 valve_mapping=default_valve_mapping,
                  freq_ranges=default_freq_ranges,
                  note_mapping=default_note_mapping):
         self.valve_mapping = valve_mapping # Valve to key map
         self.freq_ranges = freq_ranges
         self.note_mapping = note_mapping
-        
+        self.current_note = ""
+
         fluidsynth.init("soundfonts/trumpet.sf2", "alsa")
 
+    def play_Note(self, freq, keys, vol=1):
+        next_note = self.lookup_Note(freq, keys)
+        if next_note != self.current_note:
+            if self.current_note:
+                fluidsynth.stop_Note(Note(self.current_note),1)
+            print "playing note"
+            fluidsynth.play_Note(Note(next_note),1)
+            self.current_note = next_note
+
+    def stop_Note(self):
+        if self.current_note:
+            fluidsynth.stop_Note(Note(self.current_note),1)
+            print "stopping note"
+        self.current_note = ""
+
+    def lookup_Note(self, freq, keys):
+        return self.note_mapping[self.freq2idx(freq)][self.keys2valve_idx(keys)]
+
+    def keys2valve_idx(self, keys):
+        """
+        Turns a pygame keys status array into a index for indexing into the 
+        note_mapping array. Uses the indexe in keys specified by the
+        valve_mapping array.
+        """
+        return reduce(operator.or_, [keys[self.valve_mapping[i]]<<i for i in range(3)])
 
     def freq2idx(self, freq):
+        """
+        Convert a frequency input to an index for indexing into the 
+        note_mapping array
+
+        TODO: - Make it handle out of range frequencies better.
+        """
         for idx, freq_range in enumerate(self.freq_ranges):
-            if (freq >= freq_range[0]) and (freq <= freq_range[1]):
+            if (freq >= freq_range[0]) and (freq < freq_range[1]):
                 return idx
-        raise Exception()
+        return 0
 
 def getInputTone(freq, run_state):
     # Set initialization variables to interface
     # with microphone/alsa input channel
-    __CHUNK__ = 4096*2
+    __CHUNK__ = 4096
     __FORMAT__ = pa.paInt16
     __CHANNELS__ = 1
     __RATE__ = 44100
-    __DEV_INDEX__ = 3
+    __DEV_INDEX__ =3
 
     # Open and start a pyaudio audio stream
     audio = pa.PyAudio()
+    print audio.get_default_host_api_info()
     stream = audio.open(format = __FORMAT__,
                         channels = __CHANNELS__,
                         frames_per_buffer = __CHUNK__,
@@ -83,10 +118,14 @@ def getInputTone(freq, run_state):
     stream.start_stream()
     
     # Setup a filter to run over the time domain information
-    filter_order = 15
+    filter_order = 255
     # High Order Filter
     filter_cutoff = 1000.0 / (__RATE__/2.0)#Hz
     fir = sp.signal.firwin(filter_order + 1, filter_cutoff)
+    N = 16 # downsampling coefficient
+
+    freqs = np.linspace(0,__RATE__/(2*N), __CHUNK__/(16*2))
+    
     while run_state.value:
         try:
             block = stream.read(__CHUNK__)
@@ -95,17 +134,18 @@ def getInputTone(freq, run_state):
             raise
         except:
             print "dropped"
+#            continue
             block = prev_block
         
         data = block2short(block)
         # Low Pass Filter to 1kHz using http://arc.id.au/FilterDesign.html
         data_filt = sp.signal.lfilter(fir, 1.0, data)
-        N = 16 # downsampling coefficient
+
         # subsample by 16 t o go from 44200Hz to 2762.5 Hz
-        data_ds = data_filt[filter_order::N]
+#        data_ds = data_filt[filter_order::N]
+        data_ds = data_filt[0::N]
         mag = abs(np.fft.rfft(data_ds))
-        
-        freqs = np.linspace(0,__RATE__/(2*N), len(mag) )        
+
         freq.value = freqs[np.where(mag == max(mag))]
     stream.stop_stream()
     stream.close()
@@ -120,7 +160,7 @@ class TrumpetDisplay(object):
         scoretext=font.render(text_str, 1, (255,255,255))
         self.screen.blit(scoretext, pos)
 
-    def __init__(self, xy=(640,480)):
+    def __init__(self, xy=(400,35)):
         self.RUNNING = True
         self.DONE = False
         self.run_state = self.__RUNNING
@@ -132,7 +172,8 @@ class TrumpetDisplay(object):
         self.prev_note = ""
 
     def cleanup(self):
-        fluidsynth.stop_everything()
+        pygame.quit()
+        print "Stop all notes"
 
     def update_display(self, tpt, freq):
         frequency = freq.value
@@ -148,42 +189,24 @@ class TrumpetDisplay(object):
                     return self.run_state
         
         keys = pygame.key.get_pressed()
-        valves = [keys[valve_idx] for valve_idx in tpt.valve_mapping]
         self.screen.fill((0, 0, 0))
-#        frequency = 300
-        
         try:        
             if frequency < tpt.freq_ranges[0][0]:
-                self.texts("Silence", (0,0))
-                if (self.prev_note is not ""):
-                    fluidsynth.stop_Note(Note(self.prev_note))            
-                    self.prev_note = ""
-                    print "stopped note"
+                self.texts("Silence", (5,5))
+                tpt.stop_Note()
             else:
-                freq_idx = tpt.freq2idx(int(frequency))
-                note_str = tpt.note_mapping[freq_idx][valves[0] | (valves[1]<<1) | (valves[2]<<2)]
+                tpt.play_Note(frequency, keys)
                 self.texts("Freq: {0} | Note: {1}".format(
-                    frequency, note_str),(0,0))
-                
-                if (self.prev_note is not "") and (self.prev_note is not note_str):
-                    fluidsynth.stop_Note(Note(self.prev_note))            
-                    fluidsynth.play_Note(Note(note_str))
-                    self.prev_note = note_str
-                elif self.prev_note is "":
-                    fluidsynth.play_Note(Note(note_str))
-                    self.prev_note = note_str
+                    frequency, tpt.current_note),(5,5))
         except KeyboardInterrupt:
             raise
         except:
             print "Unexpected error:", sys.exc_info()[0]
-#            self.texts("".format(frequency),(0,0))
-        
+            raise
         pygame.display.update()
-
 
 if __name__ == '__main__':
     # Initialize pygame
-
     tpt = Trumpet()
     disp = TrumpetDisplay()
     freq = Value('d', 0);
@@ -198,4 +221,5 @@ if __name__ == '__main__':
         print "Exiting"
         run_state.value = 0
         input_tone_p.join()
+        tpt.stop_Note()
         disp.cleanup()
