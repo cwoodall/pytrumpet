@@ -93,10 +93,9 @@ class Trumpet(object):
         self.soundfont_file = soundfont_file
         self.soundfont_driver = soundfont_driver
         fluidsynth.init(soundfont_file, soundfont_driver)
-
         # Keep track of the current note state
         self.current_note = "" 
-        
+        self.prev_freq = 0
 
     def play_Note(self, freq, keys, vol=1):
         """
@@ -123,6 +122,10 @@ class Trumpet(object):
         """
         """
 
+        if ((freq + 20) > self.prev_freq) and ((freq - 20) < self.prev_freq):
+            print "Hysterisis"
+            freq = self.prev_freq
+        self.prev_freq = freq
         return self.note_mapping[self.freq2idx(freq)][self.keys2valve_idx(keys)]
 
     def keys2valve_idx(self, keys):
@@ -237,7 +240,7 @@ def audio_processing_worker(trumpet_state, dev_idx=3, rate=44100):
     """
     # Set initialization variables to interface
     # with microphone/alsa input channel
-    __CHUNK__ = 4096*2
+    __CHUNK__ = 4096
     __FORMAT__ = pa.paInt16
     __CHANNELS__ = 1
     __RATE__ = rate
