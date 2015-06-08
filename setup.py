@@ -12,7 +12,7 @@ config = {
     'download_url': '',
     'author_email': 'chris@cwoodall.com',
     'version': '0.1',
-    'install_requires': ['nose', 'pygame', 'mingus'],
+    'install_requires': ['nose', 'pygame', 'mingus', 'pyaudio', 'numpy', 'scipy'],
     'packages': ['pytrumpet'],
     'scripts': ['bin/pytrumpet-app.py'],
     'name': 'pytrumpet',
