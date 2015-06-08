@@ -272,7 +272,6 @@ def audio_processing_worker(trumpet_state, dev_idx=3, rate=44100):
             block = stream.read(__CHUNK__)
             prev_block = block
         except KeyboardInterrupt:
-
             raise
         except:
             print "dropped"
